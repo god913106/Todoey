@@ -12,8 +12,14 @@ class TodoListViewController: UITableViewController {
     
     var itemArray = ["Find Mike","Buy Eggos","Destory Demogorgon"]
     
+    let defaults = UserDefaults.standard //android SharedPreferences
+    
     override func viewDidLoad() {
         super.viewDidLoad()
+        //and we're going to cast this as an array of strings
+        if let items = defaults.array(forKey: "ToDoListArray") as? [String] {
+             itemArray = items
+        }
         
     }
     
@@ -58,6 +64,9 @@ class TodoListViewController: UITableViewController {
             print("Success!")
             print(textField.text!)
             self.itemArray.append(textField.text!) //新增了沒錯 但沒有重載 他是不會出現的
+            
+            self.defaults.set(self.itemArray, forKey: "ToDoListArray")
+            
             self.tableView.reloadData()
             
             
