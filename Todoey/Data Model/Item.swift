@@ -8,7 +8,8 @@
 
 import Foundation
 
-class Item {
+class Item : Codable {
+    //a type that can encode ifself to an external representation
     var title : String  = ""
     var done : Bool = false
     }
