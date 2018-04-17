@@ -7,40 +7,27 @@
 //
 
 import UIKit
+import CoreData
 
-class TodoListViewController: UITableViewController {
+class TodoListViewController: UITableViewController{
     
     var itemArray = [Item]()
     //https://medium.com/@z1235678/將圖片儲存在app裡-b7690fb2074
-    let dataFilePath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first?.appendingPathComponent("Items.plist") //預先指定的路徑
+    var selectedCategory : Category? {
+        didSet{
+            loadItems() //選取category的indexpath.row 會去讀取請求那row名稱的coredata
+        }
+    }
     //let defaults = UserDefaults.standard //android SharedPreferences
+    
+    //在TodoListViewController中，要用Application不能直接用AppDelegate.persistentContainer.viewContext因為AppDelegate是class要跨檔案使用要讓AppDelegate變成delegate
+    let context = (UIApplication.shared.delegate as! AppDelegate).persistentContainer.viewContext
     
     override func viewDidLoad() {
         super.viewDidLoad()
         
-        print(dataFilePath!)
-        
-        loadItems()
-        
-//        let newItem1 = Item()
-//        newItem1.title = "Find Mike"
-//        //newItem1.done = true
-//        itemArray.append(newItem1)
-//        
-//        let newItem2 = Item()
-//        newItem2.title = "Buy Eggos"
-//        itemArray.append(newItem2)
-//        
-//        let newItem3 = Item()
-//        newItem3.title = "Destory Demogorgon"
-//        itemArray.append(newItem3)
-        //有個bug就是你對某row打勾了 滑到下面明明有個沒打勾的卻打勾 有重覆利用這個物件
-        
-        //and we're going to cast this as an array of strings [String] ->[Item]
-        //        if let items = defaults.array(forKey: "ToDoListArray") as? [Item] {
-        //             itemArray = items
-        //        }
-        
+        print(FileManager.default.urls(for: .documentDirectory, in: .userDomainMask))
+ 
     }
     
     //MARK - TableView Datasource Methods
@@ -50,9 +37,7 @@ class TodoListViewController: UITableViewController {
     }
     
     override func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
-        
-        print("cellForRowAtIndex")
-        
+  
         let cell = tableView.dequeueReusableCell(withIdentifier: "ToDoItemCell", for: indexPath)
         
         let item = itemArray[indexPath.row]
@@ -77,20 +62,14 @@ class TodoListViewController: UITableViewController {
     //MARK - TableView Delegate Methods
     override func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
         // print(itemArray[indexPath.row])
+        // itemArray[indexPath.row].setValue("Complted", forKey: "title")
+        
+        //context.delete一定要在remove前面 才會刪除同一個indexPath.row
+        //        context.delete(itemArray[indexPath.row])
+        //        itemArray.remove(at: indexPath.row)
         
         itemArray[indexPath.row].done = !itemArray[indexPath.row].done //同下註解掉的
         
-        //        if  itemArray[indexPath.row].done == true {
-        //            itemArray[indexPath.row].done = false
-        //        }else{
-        //            itemArray[indexPath.row].done = true
-        //        }
-        
-        //        if(tableView.cellForRow(at: indexPath)?.accessoryType == .checkmark){
-        //           tableView.cellForRow(at: indexPath)?.accessoryType = .none
-        //        }else{
-        //            tableView.cellForRow(at: indexPath)?.accessoryType = .checkmark
-        //        }
         saveItems()
         
         
@@ -107,33 +86,20 @@ class TodoListViewController: UITableViewController {
         
         let action = UIAlertAction(title: "Add Item", style: .default) { (action) in
             //what will happen once the user clicks the Add Itme button on our UIAlert
-            print("Success!")
-            print(textField.text!)
-            let newItem = Item()
+            
+            let newItem = Item(context: self.context)
             newItem.title = textField.text!
+            newItem.done = false
+            newItem.parentCategory = self.selectedCategory//新增item時 會存到該category的coredata
             self.itemArray.append(newItem)
-            // self.itemArray.append(textField.text!) //新增了沒錯 但沒有重載 他是不會出現的
             
-            //            self.defaults.set(self.itemArray, forKey: "ToDoListArray")
-            /*
-             [User Defaults] Attempt to set a non-property-list object (
-             "Todoey.Item",
-             "Todoey.Item",
-             "Todoey.Item",
-             "Todoey.Item"
-             ) as an NSUserDefaults/CFPreferences value for key ToDoListArray
-             */
             self.saveItems()
-            self.tableView.reloadData()
-            
-            
         }
         
         alert.addTextField { (alertTextField) in
             alertTextField.placeholder = "Create new item"
             textField = alertTextField
-            //            print(alertTextField.text)
-            //            print("now!")
+            
         }
         
         alert.addAction(action)
@@ -143,26 +109,52 @@ class TodoListViewController: UITableViewController {
     
     //MARK - Model Manupulation Methods
     func saveItems(){
-        let encoder = PropertyListEncoder() //編碼進item.list 存在APP裡
+        
         do{
-            let data  = try encoder.encode(itemArray)
-            try data.write(to: dataFilePath!)
+            try context.save()
         }catch{
-            print("Error encodeing item array, \(error)")
+            print("Error saving context, \(error)")
         }
         tableView.reloadData()
     }
     
-    func loadItems(){
-        if let data = try? Data(contentsOf: dataFilePath!){
-            let decoder = PropertyListDecoder() //解碼APP裡item.list的東西
-            do{
-                itemArray = try decoder.decode([Item].self, from: data)
-            } catch {
-                print("Error decodeing item array, \(error)")
+    func loadItems(with request : NSFetchRequest<Item> = Item.fetchRequest(),predicate: NSPredicate? = nil){
+       let categoryPredicate = NSPredicate(format: "parentCategory.name MATCHES %@", selectedCategory!.name!)
+        if let addtionalPredicate = predicate{
+            request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [categoryPredicate,addtionalPredicate])
+        }else {
+            request.predicate = categoryPredicate
+        }
+
+        do{
+            itemArray = try context.fetch(request)
+        }catch{
+            print("Error fetching data from context\(error)")
+        }
+        tableView.reloadData()
+    }
+    
+}
+//MARK: - Search bar methods
+//擴充功能 GetONE
+extension TodoListViewController: UISearchBarDelegate {
+    func searchBarSearchButtonClicked(_ searchBar: UISearchBar) {
+        let request : NSFetchRequest<Item> = Item.fetchRequest()
+        //過濾
+        let predicate = NSPredicate(format: "title CONTAINS[cd] %@", searchBar.text!)
+     
+        //把搜尋到的排序一下
+        request.sortDescriptors = [NSSortDescriptor(key: "title", ascending: true)]
+        
+        loadItems(with: request, predicate: predicate)
+    }
+    
+    func searchBar(_ searchBar: UISearchBar, textDidChange searchText: String) {
+        if searchBar.text?.count == 0{
+            loadItems()
+            DispatchQueue.main.async {
+                searchBar.resignFirstResponder() //輸入完成 關閉鍵盤
             }
         }
-        
     }
 }
-
