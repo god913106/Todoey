@@ -8,6 +8,7 @@
 
 import UIKit
 import CoreData
+import RealmSwift
 
 @UIApplicationMain
 class AppDelegate: UIResponder, UIApplicationDelegate {
@@ -19,6 +20,14 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         // Override point for customization after application launch.
         //從改掉userdeault的第一步 就是先註解下列
 //        print(NSSearchPathForDirectoriesInDomains(.documentDirectory, .userDomainMask, true).last! as String)
+        //印出realm的資料庫位址
+        print(Realm.Configuration.defaultConfiguration.fileURL)
+        
+        
+      
+           
+        
+        
         return true
     }
 
