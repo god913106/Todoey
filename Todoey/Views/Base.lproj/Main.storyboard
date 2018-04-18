@@ -99,7 +99,7 @@
                         </connections>
                     </tableView>
                     <navigationItem key="navigationItem" title="Todoey" id="k5j-7W-8oI">
-                        <barButtonItem key="rightBarButtonItem" style="plain" systemItem="add" id="sWL-fX-Sy8">
+                        <barButtonItem key="rightBarButtonItem" systemItem="add" id="sWL-fX-Sy8">
                             <color key="tintColor" white="1" alpha="1" colorSpace="custom" customColorSpace="genericGamma22GrayColorSpace"/>
                             <connections>
                                 <action selector="addButtonPressed:" destination="0uv-bM-ByQ" id="vf2-cY-lMk"/>
