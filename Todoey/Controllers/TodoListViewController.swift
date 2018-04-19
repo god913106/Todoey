@@ -59,18 +59,24 @@ class TodoListViewController: UITableViewController{
     
     //MARK - TableView Delegate Methods
     override func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
-        // print(itemArray[indexPath.row])
-        // itemArray[indexPath.row].setValue("Complted", forKey: "title")
-        
-        //context.delete一定要在remove前面 才會刪除同一個indexPath.row
-        //        context.delete(itemArray[indexPath.row])
-        //        itemArray.remove(at: indexPath.row)
-        
-        //        todoItems?[indexPath.row].done = !(todoItems?[indexPath.row].done)! //同下註解掉的
-        //
-        //        save()
-        
-        
+        /*
+         bug：目前在tableview做done的check會跟realm同步互動，但在realm改動done的check 還無法跟tableview同步互動
+         but when i check them over realm they will not get reflected in our tablview
+         because as you remember we cannot call reload tableview from a different application into our app.
+         So it has to happen over here.
+         */
+        if let item = todoItems?[indexPath.row]{
+            do{
+                try realm.write {
+                    item.done = !item.done
+                    //realm.delete(item)
+                }
+            }catch{
+                print("Error saving done status, \(error)")
+            }
+        }
+  
+        tableView.reloadData()
         //因為點選row時 會一直是灰體 直到點選另一個row 才會變回白體
         //所以用deselectRow 這個method 可以點選某row 灰體馬上回白體 為了更良好的用戶體驗
         tableView.deselectRow(at: indexPath, animated: true)
@@ -89,6 +95,7 @@ class TodoListViewController: UITableViewController{
                     try self.realm.write {
                         let newItem = Item()
                         newItem.title = textField.text!
+                        newItem.dateCreated = Date()
                         currentCategory.items.append(newItem)
                     }
                 }catch{
@@ -131,8 +138,11 @@ class TodoListViewController: UITableViewController{
 }
 //MARK: - Search bar methods
 //擴充功能 GetONE
-//extension TodoListViewController: UISearchBarDelegate {
-//    func searchBarSearchButtonClicked(_ searchBar: UISearchBar) {
+extension TodoListViewController: UISearchBarDelegate {
+    func searchBarSearchButtonClicked(_ searchBar: UISearchBar) {
+        //todoItems = todoItems?.filter("title CONTAINS[cd] %@", searchBar.text!).sorted(byKeyPath: "title", ascending: true)
+        todoItems = todoItems?.filter("title CONTAINS[cd] %@", searchBar.text!).sorted(byKeyPath: "dateCreated", ascending: true)
+    }
 //        let request : NSFetchRequest<Item> = Item.fetchRequest()
 //        //過濾
 //        let predicate = NSPredicate(format: "title CONTAINS[cd] %@", searchBar.text!)
@@ -141,14 +151,14 @@ class TodoListViewController: UITableViewController{
 //        request.sortDescriptors = [NSSortDescriptor(key: "title", ascending: true)]
 //
 //        loadItems(with: request, predicate: predicate)
-//    }
-//
-//    func searchBar(_ searchBar: UISearchBar, textDidChange searchText: String) {
-//        if searchBar.text?.count == 0{
-//            loadItems()
-//            DispatchQueue.main.async {
-//                searchBar.resignFirstResponder() //輸入完成 關閉鍵盤
-//            }
-//        }
-//    }
-//}
+    
+
+    func searchBar(_ searchBar: UISearchBar, textDidChange searchText: String) {
+        if searchBar.text?.count == 0{
+            loadItems()
+            DispatchQueue.main.async {
+                searchBar.resignFirstResponder() //輸入完成 關閉鍵盤
+            }
+        }
+    }
+}
