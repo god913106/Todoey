@@ -75,7 +75,7 @@ class TodoListViewController: UITableViewController{
                 print("Error saving done status, \(error)")
             }
         }
-  
+        
         tableView.reloadData()
         //因為點選row時 會一直是灰體 直到點選另一個row 才會變回白體
         //所以用deselectRow 這個method 可以點選某row 灰體馬上回白體 為了更良好的用戶體驗
@@ -134,6 +134,30 @@ class TodoListViewController: UITableViewController{
         
         tableView.reloadData()
     }
+    //新增delete
+    override func tableView(_ tableView: UITableView, editActionsForRowAt
+        indexPath: IndexPath) -> [UITableViewRowAction]? {
+        
+        //delete
+        let deleteAction = UITableViewRowAction(style: UITableViewRowActionStyle.default
+            , title:"Delete", handler:{(action, indexPath) -> Void in
+                
+                //從view上刪除此物件 也在core data內刪除
+                if let item = self.todoItems?[indexPath.row]{
+                    do{
+                        try self.realm.write {
+                            //item.done = !item.done
+                            self.realm.delete(item)
+                        }
+                    }catch{
+                        print("Error saving done status, \(error)")
+                    }
+                }
+                self.tableView.reloadData()
+        })
+        
+        return [deleteAction]
+    }
     
 }
 //MARK: - Search bar methods
@@ -143,16 +167,16 @@ extension TodoListViewController: UISearchBarDelegate {
         //todoItems = todoItems?.filter("title CONTAINS[cd] %@", searchBar.text!).sorted(byKeyPath: "title", ascending: true)
         todoItems = todoItems?.filter("title CONTAINS[cd] %@", searchBar.text!).sorted(byKeyPath: "dateCreated", ascending: true)
     }
-//        let request : NSFetchRequest<Item> = Item.fetchRequest()
-//        //過濾
-//        let predicate = NSPredicate(format: "title CONTAINS[cd] %@", searchBar.text!)
-//
-//        //把搜尋到的排序一下
-//        request.sortDescriptors = [NSSortDescriptor(key: "title", ascending: true)]
-//
-//        loadItems(with: request, predicate: predicate)
+    //        let request : NSFetchRequest<Item> = Item.fetchRequest()
+    //        //過濾
+    //        let predicate = NSPredicate(format: "title CONTAINS[cd] %@", searchBar.text!)
+    //
+    //        //把搜尋到的排序一下
+    //        request.sortDescriptors = [NSSortDescriptor(key: "title", ascending: true)]
+    //
+    //        loadItems(with: request, predicate: predicate)
     
-
+    
     func searchBar(_ searchBar: UISearchBar, textDidChange searchText: String) {
         if searchBar.text?.count == 0{
             loadItems()
