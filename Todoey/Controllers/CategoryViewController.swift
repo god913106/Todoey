@@ -8,8 +8,10 @@
 
 import UIKit
 import RealmSwift
+import ChameleonFramework
 
-class CategoryViewController: UITableViewController {
+
+class CategoryViewController: SwipeTableViewController, UITextFieldDelegate {
     
     let realm = try! Realm()
     
@@ -19,9 +21,13 @@ class CategoryViewController: UITableViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
         loadCategory()
+        tableView.separatorStyle = .none
         print(FileManager.default.urls(for: .documentDirectory, in: .userDomainMask))
         
     }
+//    override func viewWillAppear(_ animated: Bool) {
+//        navigationController?.navigationBar.barTintColor = UIColor(hexString: "28AAC0")
+//    }
     
     //MARK - Add New Items
     //Shopping List , Home , Work , Misc. , To Eat
@@ -33,9 +39,14 @@ class CategoryViewController: UITableViewController {
             //what will happen once the user clicks the Add Itme button on our UIAlert
             
             let newCategory = Category()
-            newCategory.name = textField.text!
-            //self.categories.append(newCategory) 用了realm就會自動監控變化 故不用append
-            self.save(category: newCategory)
+            if (textField.text!) != ""{
+                newCategory.name = textField.text!
+                newCategory.color = UIColor.randomFlat.hexValue()
+                self.save(category: newCategory)
+            }else{
+                print("123")
+            }
+            
             
         }
         alert.addTextField { (alertTextField) in
@@ -55,17 +66,28 @@ class CategoryViewController: UITableViewController {
     }
     
     override func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
-        let cell = tableView.dequeueReusableCell(withIdentifier: "CategoryCell", for: indexPath)
+        let cell = super.tableView(tableView, cellForRowAt: indexPath) // cell is already a SwipeCell
         
-        cell.textLabel?.text = categories?[indexPath.row].name ?? "No Categories Added Yet"
-        cell.accessoryType = .disclosureIndicator
+        if let category = categories?[indexPath.row]{
+            cell.textLabel?.text = category.name
+            cell.accessoryType = .disclosureIndicator
+            
+            guard let categoryColor = UIColor(hexString: category.color) else {fatalError()}
+            cell.backgroundColor = categoryColor
+            cell.textLabel?.textColor = ContrastColorOf(categoryColor, returnFlat: true)
+        }
+        
+        
+        
+        
         return cell
     }
     
     //MARK: - TableView Delegate Methods
     override func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
-        //tableView.deselectRow(at: indexPath, animated: true)
         performSegue(withIdentifier: "goToItems", sender: self)
+        tableView.deselectRow(at: indexPath, animated: true)
+        
         
     }
     //Write the PrepareForSegue Method here
@@ -74,9 +96,9 @@ class CategoryViewController: UITableViewController {
         if let indexPath = tableView.indexPathForSelectedRow{
             let destinationVC = segue.destination as! TodoListViewController
             
-                destinationVC.selectedCategory = categories?[indexPath.row]
-            }
+            destinationVC.selectedCategory = categories?[indexPath.row]
         }
+    }
     
     
     //MARK: - Data Manipulation Methods
@@ -95,5 +117,18 @@ class CategoryViewController: UITableViewController {
         categories = realm.objects(Category.self)
         tableView.reloadData() //叫檔案都要reload
     }
-
+    
+    //MARK: - Delete Data From Swipe
+    override func updateModel(at indexPath: IndexPath) {
+        
+        if let categoryForDeletion = categories?[indexPath.row]{
+            do{
+                try realm.write {
+                    realm.delete(categoryForDeletion)
+                }
+            }catch{
+                print("Error deleting ctegory, \(error)")
+            }
+        }
+    }
 }

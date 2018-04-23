@@ -8,11 +8,13 @@
 
 import UIKit
 import RealmSwift
+import ChameleonFramework
 
-class TodoListViewController: UITableViewController{
+class TodoListViewController: SwipeTableViewController{
     
     let realm = try! Realm()
     
+    @IBOutlet weak var searchBar: UISearchBar!
     var todoItems: Results<Item>?
     //https://medium.com/@z1235678/將圖片儲存在app裡-b7690fb2074
     var selectedCategory : Category? {
@@ -23,9 +25,38 @@ class TodoListViewController: UITableViewController{
     
     override func viewDidLoad() {
         super.viewDidLoad()
-        
+        tableView.separatorStyle = .none
         print(FileManager.default.urls(for: .documentDirectory, in: .userDomainMask))
         
+    }
+    override func viewWillAppear(_ animated: Bool) {
+        title = selectedCategory?.name
+        guard let colorHex = selectedCategory?.color else {fatalError()}
+        updateNavBar(withHexCode: colorHex)
+    }
+    
+    override func viewWillDisappear(_ animated: Bool) {
+        updateNavBar(withHexCode: "28AAC0")
+    }
+    
+    //MARK: - Nav Bar Setup Methods
+    func updateNavBar(withHexCode colorHexCode: String){
+        guard let navBar = navigationController?.navigationBar else {
+            fatalError("Navigation controller does not exist.")//fatalError("Navigation controller does not exist.") nav的error用法
+        }
+        guard let navColor = UIColor(hexString: colorHexCode) else { fatalError()}
+        //let navColor = FlatWhite()
+        
+        //navigationController?.navigationBar.barTintColor = UIColor(hexString: colorHex)
+        navBar.barTintColor = navColor //barTintColor 導覽列修改背景色
+        searchBar.barTintColor = navColor
+        navBar.tintColor = ContrastColorOf(navColor, returnFlat: true) //除了背景色以外的 文字 圖標
+        
+        if #available(iOS 11.0, *) {
+            navBar.largeTitleTextAttributes = [NSAttributedStringKey.foregroundColor : ContrastColorOf(navColor, returnFlat: true)]
+        } else {
+            // Fallback on earlier versions
+        }
     }
     
     //MARK - TableView Datasource Methods
@@ -36,26 +67,40 @@ class TodoListViewController: UITableViewController{
     
     override func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
         
-        let cell = tableView.dequeueReusableCell(withIdentifier: "ToDoItemCell", for: indexPath)
-        if let item = todoItems?[indexPath.row] {
+        let cell = super.tableView(tableView, cellForRowAt: indexPath) // cell is already a SwipeCell
+        
+        if let item = todoItems?[indexPath.row]{
             cell.textLabel?.text = item.title
-            //Ternary operator ==>
-            // value = condition ? valueIfTrue : valueIfFalse
-            cell.accessoryType = item.done ? .checkmark : .none //跟下面的if/else 一樣的功能 卻只要寫一行就好
-        }else{
+            
+            
+            
+            if let color = UIColor(hexString: (selectedCategory!.color))?.darken(byPercentage: CGFloat(indexPath.row)/CGFloat(todoItems!.count)){
+                cell.backgroundColor = color
+                /*
+                 ContrastColorOf(color, returnFlat: true)=> 背景顏色太暗 字體顏色會反白，反之，背景色是亮的，字體色就會黑
+                 */
+                cell.textLabel?.textColor = ContrastColorOf(color, returnFlat: true)
+            }
+            
+            //            print("version 1:\(CGFloat(indexPath.row/todoItems!.count))")
+            //            print("version 2:\(CGFloat(indexPath.row)/CGFloat(todoItems!.count))")
+            
+            cell.accessoryType = (item.done) ? .checkmark : .none //跟下面的if/else 一樣的功能 卻只要寫一行就好
+        } else {
             cell.textLabel?.text = "No Items Added"
         }
         
-        //但還有個bug你勾選後卻不會更新
-        /*
-         if item.done == true {
-         cell.accessoryType = .checkmark
-         } else {
-         cell.accessoryType = .none
-         }*/
         
         return cell
     }
+    //    override func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
+    //        let cell = super.tableView(tableView, cellForRowAt: indexPath) // cell is already a SwipeCell
+    //
+    //        cell.textLabel?.text = categories?[indexPath.row].name ?? "No Categories Added Yet"
+    //        cell.accessoryType = .disclosureIndicator
+    //
+    //        return cell
+    //    }
     
     //MARK - TableView Delegate Methods
     override func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
@@ -69,7 +114,6 @@ class TodoListViewController: UITableViewController{
             do{
                 try realm.write {
                     item.done = !item.done
-                    //realm.delete(item)
                 }
             }catch{
                 print("Error saving done status, \(error)")
@@ -91,16 +135,21 @@ class TodoListViewController: UITableViewController{
         let action = UIAlertAction(title: "Add Item", style: .default) { (action) in
             //     what will happen once the user clicks the Add Itme button on our UIAlert
             if let currentCategory = self.selectedCategory{
-                do{
-                    try self.realm.write {
-                        let newItem = Item()
-                        newItem.title = textField.text!
-                        newItem.dateCreated = Date()
-                        currentCategory.items.append(newItem)
+                if (textField.text!) != "" {
+                    do{
+                        try self.realm.write {
+                            let newItem = Item()
+                            newItem.title = textField.text!
+                            newItem.dateCreated = Date()
+                            currentCategory.items.append(newItem)
+                        }
+                    }catch{
+                        print("Error saving new items, \(error)")
                     }
-                }catch{
-                    print("Error saving new items, \(error)")
+                }else{
+                    print("456")
                 }
+                
             }
             self.tableView.reloadData()
         }
@@ -134,29 +183,18 @@ class TodoListViewController: UITableViewController{
         
         tableView.reloadData()
     }
-    //新增delete
-    override func tableView(_ tableView: UITableView, editActionsForRowAt
-        indexPath: IndexPath) -> [UITableViewRowAction]? {
+    //MARK: - Delete Data From Swipe
+    override func updateModel(at indexPath: IndexPath) {
         
-        //delete
-        let deleteAction = UITableViewRowAction(style: UITableViewRowActionStyle.default
-            , title:"Delete", handler:{(action, indexPath) -> Void in
-                
-                //從view上刪除此物件 也在core data內刪除
-                if let item = self.todoItems?[indexPath.row]{
-                    do{
-                        try self.realm.write {
-                            //item.done = !item.done
-                            self.realm.delete(item)
-                        }
-                    }catch{
-                        print("Error saving done status, \(error)")
-                    }
+        if let todoItemsForDeletion = todoItems?[indexPath.row]{
+            do{
+                try realm.write {
+                    realm.delete(todoItemsForDeletion)
                 }
-                self.tableView.reloadData()
-        })
-        
-        return [deleteAction]
+            }catch{
+                print("Error deleting todoItems, \(error)")
+            }
+        }
     }
     
 }
@@ -167,15 +205,6 @@ extension TodoListViewController: UISearchBarDelegate {
         //todoItems = todoItems?.filter("title CONTAINS[cd] %@", searchBar.text!).sorted(byKeyPath: "title", ascending: true)
         todoItems = todoItems?.filter("title CONTAINS[cd] %@", searchBar.text!).sorted(byKeyPath: "dateCreated", ascending: true)
     }
-    //        let request : NSFetchRequest<Item> = Item.fetchRequest()
-    //        //過濾
-    //        let predicate = NSPredicate(format: "title CONTAINS[cd] %@", searchBar.text!)
-    //
-    //        //把搜尋到的排序一下
-    //        request.sortDescriptors = [NSSortDescriptor(key: "title", ascending: true)]
-    //
-    //        loadItems(with: request, predicate: predicate)
-    
     
     func searchBar(_ searchBar: UISearchBar, textDidChange searchText: String) {
         if searchBar.text?.count == 0{
